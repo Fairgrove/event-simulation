@@ -33,12 +33,13 @@ class EventGenerator {
         //std::uniform_int_distribution<uint32_t> server_dist;
     
     public:
+        //constructor with member initializer list
         EventGenerator(const Config& conf):
             config(conf),
             rng(std::random_device{}()),
             success_dist(config.success_chance),
             complexity_dist(config.eventTime[0], config.eventTime[1]){
-                std::cout << "constructor" << "\n";
+                std::cout << "constructor with member initializer list" << "\n";
             }
         
         Event next() {
