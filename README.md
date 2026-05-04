@@ -31,3 +31,8 @@ server load
             total strain: xx%
 =====================
 ```
+
+
+##
+the simulate work function   
+$$\sum_{i=1}^{n} x+1$$
