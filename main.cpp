@@ -1,15 +1,17 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
-#include <deque>
+#include <queue>
 #include <random>
 #include <chrono>
 #include <algorithm>
 #include <numeric>
 
+#include <thread>
+
 struct Config{
     int num_events = 1'000;
-    int numServers = 2;
+    int num_servers = 2;
     std::vector<int> eventTime = {50'000, 1'000'000};
     
     double success_chance = 0.99;
@@ -22,26 +24,66 @@ struct Event{
     std::chrono::duration<double> timestamp;
 };
 
-class EventGenerator {
-    private:
-        Config config;
-        std::mt19937 rng;
+// thread safe queue for events
+class SafeQueue {
+    std::queue<Event> queue;
+    std::mutex mutex;
+    std::condition_variable cv;
 
-        std::uniform_int_distribution<uint32_t> complexity_dist;
-        std::bernoulli_distribution success_dist;
-        
-        //std::uniform_int_distribution<uint32_t> server_dist;
-    
+    public:
+        void push(Event e) {
+            std::lock_guard<std::mutex> lock(mutex);
+            queue.push(std::move(e));
+            cv.notify_one();  // wake up handler
+        }
+
+        Event pop() {
+            std::unique_lock<std::mutex> lock(mutex);
+            cv.wait(lock, [this]{ return !queue.empty(); }); // sleep until data arrives
+            Event e = std::move(queue.front());
+            queue.pop();
+            return e;
+        }
+};
+
+class EventGenerator {
+    Config config;
+    int id;
+    SafeQueue<Event>& queue;
+
     public:
         //constructor with member initializer list
-        EventGenerator(const Config& conf):
-            config(conf),
-            rng(std::random_device{}()),
-            success_dist(config.success_chance),
-            complexity_dist(config.eventTime[0], config.eventTime[1]){
+        EventGenerator(const Config& conf, int id, SafeQueue<Event>& queue):
+            config(conf), id(id), queue(queue)
+            {
                 std::cout << "constructor with member initializer list" << "\n";
+                std::cout << "   Event Generator: " << id << "\n";
             }
         
+        void run() {
+            // create random generators here
+            std::mt19937 rng(std::random_device{}());
+            
+            std::bernoulli_distribution success_dist; 
+            std::uniform_int_distribution<uint32_t> complexity_dist;
+            std::uniform_int_distribution<uint32_t> server_dist;
+            
+            std::uniform_int_distribution<> delay(100, 1000);
+            
+            while (true){
+                // Creating Event
+                Event e;
+                e.complexity = complexity_dist(rng);
+                e.success = success_dist(rng);
+                
+                // lag
+                std::this_thread::sleep(std::chrono::milliseconds(delay(rng)));
+                
+                // send event to queue
+                queue.push(e)
+            }
+        }
+
         Event next() {
             Event e;
             //e.timestamp = std::chrono::high_resolution_clock::now();
@@ -60,7 +102,8 @@ void simulate_work(int complexity){
 
 int main(){
     Config config;
-    EventGenerator generator (config);
+    SafeQueue<Event> queue;
+    EventGenerator generator (config, 1 SafeQueue);
 
     const auto run_start = std::chrono::high_resolution_clock::now();
 
@@ -90,5 +133,7 @@ int main(){
     std::cout << "elapsed time: " << run_elapsed.count() << "\n";
     std::cout << "    # events: " << config.num_events << "\n";
 
+    unsigned int threads = std::thread::hardware_concurrency();
+    std::cout << "threads: " << threads << "\n";
     return 0;
 }
