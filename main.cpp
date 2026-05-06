@@ -26,22 +26,22 @@ struct Event{
 
 // thread safe queue for events
 class SafeQueue {
-    std::queue<Event> queue;
+    std::queue<Event> event_queue;
     std::mutex mutex;
     std::condition_variable cv;
 
     public:
         void push(Event e) {
             std::lock_guard<std::mutex> lock(mutex);
-            queue.push(std::move(e));
+            event_queue.push(std::move(e));
             cv.notify_one();  // wake up handler
         }
 
         Event pop() {
             std::unique_lock<std::mutex> lock(mutex);
-            cv.wait(lock, [this]{ return !queue.empty(); }); // sleep until data arrives
-            Event e = std::move(queue.front());
-            queue.pop();
+            cv.wait(lock, [this]{ return !event_queue.empty(); }); // sleep until data arrives
+            Event e = std::move(event_queue.front());
+            event_queue.pop();
             return e;
         }
 };
@@ -49,12 +49,12 @@ class SafeQueue {
 class EventGenerator {
     Config config;
     int id;
-    SafeQueue<Event>& queue;
+    SafeQueue& event_queue;
 
     public:
         //constructor with member initializer list
-        EventGenerator(const Config& conf, int id, SafeQueue<Event>& queue):
-            config(conf), id(id), queue(queue)
+        EventGenerator(const Config& conf, int generator_id, SafeQueue& eq):
+            config(conf), id(generator_id), event_queue(eq)
             {
                 std::cout << "constructor with member initializer list" << "\n";
                 std::cout << "   Event Generator: " << id << "\n";
@@ -77,19 +77,11 @@ class EventGenerator {
                 e.success = success_dist(rng);
                 
                 // lag
-                std::this_thread::sleep(std::chrono::milliseconds(delay(rng)));
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay(rng)));
                 
                 // send event to queue
-                queue.push(e)
+                event_queue.push(e);
             }
-        }
-
-        Event next() {
-            Event e;
-            //e.timestamp = std::chrono::high_resolution_clock::now();
-            e.complexity = complexity_dist(rng);
-            e.success = success_dist(rng);
-            return e;
         }
 };
 
@@ -102,15 +94,16 @@ void simulate_work(int complexity){
 
 int main(){
     Config config;
-    SafeQueue<Event> queue;
-    EventGenerator generator (config, 1 SafeQueue);
+    SafeQueue event_queue;
+    EventGenerator generator (config, 1, event_queue);
+    generator.run();
 
     const auto run_start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < config.num_events; i++){
-        Event e = generator.next();
+        //Event e = generator.next();
 
-        simulate_work(e.complexity);
+        //simulate_work(e.complexity);
 
 
         //const auto start = std::chrono::high_resolution_clock::now();
