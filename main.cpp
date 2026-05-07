@@ -12,6 +12,8 @@
 struct Config{
     int num_events = 1'000;
     int num_servers = 2;
+    int num_generators = 1'000;
+
     std::vector<int> eventTime = {50'000, 1'000'000};
     
     double success_chance = 0.99;
@@ -44,6 +46,10 @@ class SafeQueue {
             event_queue.pop();
             return e;
         }
+
+        int size() {
+            return event_queue.size();
+        }
 };
 
 class EventGenerator {
@@ -56,8 +62,8 @@ class EventGenerator {
         EventGenerator(const Config& conf, int generator_id, SafeQueue& eq):
             config(conf), id(generator_id), event_queue(eq)
             {
-                std::cout << "constructor with member initializer list" << "\n";
-                std::cout << "   Event Generator: " << id << "\n";
+                //std::cout << "constructor with member initializer list" << "\n";
+                //std::cout << "   Event Generator: " << id << "\n";
             }
         
         void run() {
@@ -81,8 +87,27 @@ class EventGenerator {
                 
                 // send event to queue
                 event_queue.push(e);
+                //std::cout << "hello from generator - " << id << " - queue size : " << event_queue.size()<< "\n";
             }
         }
+};
+
+class Server {
+    Config config;
+    int id;
+    SafeQueue& event_queue;
+
+    int total_events_received = 0;
+
+    public:
+        //constructor with member initializer list
+        Server(const Config& conf, int generator_id, SafeQueue& eq):
+            config(conf), id(generator_id), event_queue(eq)
+            {
+                //std::cout << "constructor with member initializer list" << "\n";
+                //std::cout << "   Event Generator: " << id << "\n";
+            }
+        
 };
 
 void simulate_work(int complexity){
@@ -95,38 +120,42 @@ void simulate_work(int complexity){
 int main(){
     Config config;
     SafeQueue event_queue;
-    EventGenerator generator (config, 1, event_queue);
-    generator.run();
-
-    const auto run_start = std::chrono::high_resolution_clock::now();
-
-    for (int i = 0; i < config.num_events; i++){
-        //Event e = generator.next();
-
-        //simulate_work(e.complexity);
 
 
-        //const auto start = std::chrono::high_resolution_clock::now();
-
-        
-        //const auto end = std::chrono::high_resolution_clock::now();
-        //std::chrono::duration<double> elapsed = end - start;
-        
-        /*
-        std::cout << "      server: " << server_dist(rng) << "\n";
-        std::cout << "     success: " << success_dist(rng) << "\n";
-        std::cout << "    duration: " << duration_dist(rng) << "\n";
-        std::cout << "        time: " << elapsed.count() << "\n\n";
-        */
-    }
+    std::cout << "Firing up " << config.num_generators << " generators" << "\n";
     
-    const auto run_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> run_elapsed = run_end - run_start;
+    std::vector<EventGenerator> generators;
+    for (int i = 0; i < config.num_generators; i++){
+        // emplace constructs the generator directly into the vector, which is apparently faster???
+        generators.emplace_back(config, i, event_queue); 
+    }
 
-    std::cout << "elapsed time: " << run_elapsed.count() << "\n";
-    std::cout << "    # events: " << config.num_events << "\n";
+    // generator threads
+    std::vector<std::thread> generatorThreads;
+    for (auto& gen : generators){
+        // reference to the i'th instance of generator and 'tells' the thread to run run() from that instance
+        generatorThreads.emplace_back(&EventGenerator::run, &gen); 
+    }
+    std::cout << "   Done" << "\n";
+    
+    while (true) {
+        std::cout << "\r" << "Queue Size : " << event_queue.size() << std::flush;
+
+    }
+
+    //handlerThread.join();
+    for (auto& t : generatorThreads) t.join();
 
     unsigned int threads = std::thread::hardware_concurrency();
     std::cout << "threads: " << threads << "\n";
     return 0;
 }
+
+/*
+    const auto run_start = std::chrono::high_resolution_clock::now();
+    const auto run_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> run_elapsed = run_end - run_start;
+
+    std::cout << "elapsed time: " << run_elapsed.count() << "\n";
+    std::cout << "    # events: " << config.num_events << "\n";
+*/
