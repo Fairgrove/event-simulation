@@ -21,6 +21,10 @@ Side project for practicing c++ :)
     - does it say to the device to try another server (will slow down traffic a lot because there will be a lot of back and forth)   
     - does it send the event to a random server without letting the device know (potentially sends the event to a server with really bad connection)   
 
+- a server could have `n` handlers. more handlers = faster processing of its queue.
+- maybe there is a pool of handlers and there could be a smart reallocation of handlers to other servers
+
+
 
 metrics 
 ```

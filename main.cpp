@@ -14,14 +14,19 @@ struct Config{
     int num_servers = 2;
     int num_generators = 1'000;
 
-    std::vector<int> eventTime = {50'000, 1'000'000};
+    std::vector<int> event_complexity_extremes = {50'000, 1'000'000};
     
     double success_chance = 0.99;
 };
 
 struct Event{
+    int device_id;
+    int event_id;
+    
     int complexity;
+
     bool success; // packet loss
+    
     std::chrono::duration<double> execution_time;
     std::chrono::duration<double> timestamp;
 };
@@ -57,6 +62,10 @@ class EventGenerator {
     int id;
     SafeQueue& event_queue;
 
+    int event_counter = 0;
+
+    bool running = false;
+
     public:
         //constructor with member initializer list
         EventGenerator(const Config& conf, int generator_id, SafeQueue& eq):
@@ -67,6 +76,8 @@ class EventGenerator {
             }
         
         void run() {
+            running = true;
+
             // create random generators here
             std::mt19937 rng(std::random_device{}());
             
@@ -76,17 +87,20 @@ class EventGenerator {
             
             std::uniform_int_distribution<> delay(100, 1000);
             
-            while (true){
+            while (running){
                 // Creating Event
                 Event e;
                 e.complexity = complexity_dist(rng);
                 e.success = success_dist(rng);
+                e.device_id = id;
+                e.event_id = event_counter;
                 
                 // lag
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay(rng)));
                 
                 // send event to queue
                 event_queue.push(e);
+                event_counter++
                 //std::cout << "hello from generator - " << id << " - queue size : " << event_queue.size()<< "\n";
             }
         }
@@ -94,20 +108,31 @@ class EventGenerator {
 
 class Server {
     Config config;
+    SafeQueue event_queue;
+
+    bool running = false;
     int id;
-    SafeQueue& event_queue;
 
     int total_events_received = 0;
 
     public:
         //constructor with member initializer list
-        Server(const Config& conf, int generator_id, SafeQueue& eq):
-            config(conf), id(generator_id), event_queue(eq)
+        Server(const Config& conf, int server_id):
+            config(conf), id(server_id):
             {
                 //std::cout << "constructor with member initializer list" << "\n";
                 //std::cout << "   Event Generator: " << id << "\n";
             }
         
+        void run(){
+            running = true;
+
+            while (running) {
+                Event e = event_queue.pop();
+
+
+            }
+        }
 };
 
 void simulate_work(int complexity){
@@ -119,7 +144,8 @@ void simulate_work(int complexity){
 
 int main(){
     Config config;
-    SafeQueue event_queue;
+    Server server1;
+    server1.run(config);
 
 
     std::cout << "Firing up " << config.num_generators << " generators" << "\n";
