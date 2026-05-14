@@ -10,10 +10,10 @@
 #include <thread>
 
 struct Config{
-    int num_servers = 5;
+    int num_servers = 10;
     int num_generators = 1000;
 
-    std::vector<int> event_complexity_extremes = {1, 2};
+    std::vector<int> event_complexity_extremes = {50'000, 1'000'000};
     
     double success_chance = 0.99;
 };
@@ -74,9 +74,12 @@ class Server {
         // methods
         void simulate_work(int complexity){
             int i = 0;
-            while (i < complexity){
+            
+            while (i < complexity) {
                 i++;
             }
+            
+            // std::this_thread::sleep_for(std::chrono::milliseconds(complexity));
         }
 
     public:
@@ -137,7 +140,7 @@ class EventGenerator {
             // create random generators here
             
             std::bernoulli_distribution success_dist; 
-            std::uniform_int_distribution<uint32_t> complexity_dist;
+            std::uniform_int_distribution<uint32_t> complexity_dist(config.event_complexity_extremes[0], config.event_complexity_extremes[1]);
             std::uniform_int_distribution<uint32_t> server_dist;
             
             std::uniform_int_distribution<> delay(100, 1000);
